@@ -44,8 +44,12 @@ module brv32p_core (
   logic flush_id, flush_ex, flush_mem;
   fwd_sel_e fwd_rs1, fwd_rs2;
   logic mem_stall;
+  logic dmem_stall;
+  logic imem_stall;
 
-  assign mem_stall = (dmem_rd | dmem_wr) & ~dmem_ready;
+  assign dmem_stall = (dmem_rd | dmem_wr) & ~dmem_ready;
+  assign imem_stall = imem_rd & ~imem_ready;
+  assign mem_stall  = dmem_stall | imem_stall;
 
   // ════════════════════════════════════════════════════════════════════
   // IF — Instruction Fetch
@@ -473,6 +477,8 @@ module brv32p_core (
   hazard_unit u_hazard (
     .id_rs1           (rs1_addr_id),
     .id_rs2           (rs2_addr_id),
+    .ex_rs1           (rs1_addr_ex),
+    .ex_rs2           (rs2_addr_ex),
     .ex_rd            (rd_addr_ex),
     .ex_reg_wr        (ctrl_ex.reg_wr),
     .ex_mem_rd        (ctrl_ex.mem_rd),

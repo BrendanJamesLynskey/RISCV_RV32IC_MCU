@@ -10,9 +10,13 @@
 import brv32p_pkg::*;
 
 module hazard_unit (
-  // ID stage register addresses
+  // ID stage register addresses (for load-use hazard detection)
   input  logic [4:0]  id_rs1,
   input  logic [4:0]  id_rs2,
+
+  // EX stage register addresses (for forwarding MUX control)
+  input  logic [4:0]  ex_rs1,
+  input  logic [4:0]  ex_rs2,
 
   // EX stage info
   input  logic [4:0]  ex_rd,
@@ -53,20 +57,20 @@ module hazard_unit (
   assign load_use_hazard = ex_mem_rd && (ex_rd != 5'd0) &&
                            ((ex_rd == id_rs1) || (ex_rd == id_rs2));
 
-  // ── Data forwarding ──────────────────────────────────────────────────
+  // ── Data forwarding (based on EX stage addresses) ──────────────────
   always_comb begin
     // RS1 forwarding
-    if (ex_reg_wr && (ex_rd != 5'd0) && (ex_rd == id_rs1) && !ex_mem_rd)
+    if (mem_reg_wr && (mem_rd != 5'd0) && (mem_rd == ex_rs1))
       fwd_rs1 = FWD_EX_MEM;
-    else if (mem_reg_wr && (mem_rd != 5'd0) && (mem_rd == id_rs1))
+    else if (wb_reg_wr && (wb_rd != 5'd0) && (wb_rd == ex_rs1))
       fwd_rs1 = FWD_MEM_WB;
     else
       fwd_rs1 = FWD_NONE;
 
     // RS2 forwarding
-    if (ex_reg_wr && (ex_rd != 5'd0) && (ex_rd == id_rs2) && !ex_mem_rd)
+    if (mem_reg_wr && (mem_rd != 5'd0) && (mem_rd == ex_rs2))
       fwd_rs2 = FWD_EX_MEM;
-    else if (mem_reg_wr && (mem_rd != 5'd0) && (mem_rd == id_rs2))
+    else if (wb_reg_wr && (wb_rd != 5'd0) && (wb_rd == ex_rs2))
       fwd_rs2 = FWD_MEM_WB;
     else
       fwd_rs2 = FWD_NONE;
