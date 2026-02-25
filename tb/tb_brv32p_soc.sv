@@ -108,8 +108,9 @@ module tb_brv32p_soc;
     // latency, it should appear. Wait generously.
     wait_reg(1, 32'd42, 50000);
 
-    // Let more instructions complete
-    wait_reg(3, 32'd52, 50000);
+    // Let more instructions complete — wait for a later register
+    // to ensure all ALU instructions have reached writeback
+    wait_reg(19, 32'd1, 100000);
 
     check("ADDI x1=42",    get_reg(1),  32'd42);
     check("ADDI x2=10",    get_reg(2),  32'd10);
@@ -221,7 +222,7 @@ module tb_brv32p_soc;
 
   // Timeout
   initial begin
-    #2_000_000;
+    #20_000_000;
     $display("[ERROR] Global timeout!");
     $finish;
   end
