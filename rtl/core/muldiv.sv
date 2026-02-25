@@ -54,7 +54,8 @@ module muldiv (
       div_rem          <= 1'b0;
       negate_result    <= 1'b0;
       negate_remainder <= 1'b0;
-    end else if (start && (op inside {MD_DIV, MD_DIVU, MD_REM, MD_REMU})) begin
+    end else if (start && !div_active &&
+                 (op == MD_DIV || op == MD_DIVU || op == MD_REM || op == MD_REMU)) begin
       div_active <= 1'b1;
       div_count  <= 6'd0;
 
@@ -113,14 +114,14 @@ module muldiv (
 
   // ── Output MUX ────────────────────────────────────────────────────────
   logic is_mul;
-  assign is_mul = (op inside {MD_MUL, MD_MULH, MD_MULHSU, MD_MULHU});
+  assign is_mul = (op == MD_MUL || op == MD_MULH || op == MD_MULHSU || op == MD_MULHU);
 
   always_comb begin
     valid  = 1'b0;
-    busy   = 1'b0;
+    busy   = div_active && !div_done;
     result = 32'b0;
 
-    if (start && is_mul) begin
+    if (start && !div_active && is_mul) begin
       valid = 1'b1;
       case (op)
         MD_MUL:    result = mul_ss[31:0];
@@ -129,13 +130,9 @@ module muldiv (
         MD_MULHU:  result = mul_uu[63:32];
         default:   result = 32'b0;
       endcase
-    end else if (div_active) begin
-      busy = 1'b1;
-      if (div_done) begin
-        valid  = 1'b1;
-        busy   = 1'b0;
-        result = div_result;
-      end
+    end else if (div_done) begin
+      valid  = 1'b1;
+      result = div_result;
     end
   end
 
