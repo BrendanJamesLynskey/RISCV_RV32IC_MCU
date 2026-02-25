@@ -3,15 +3,16 @@
 // ============================================================================
 // 2 master ports (I-cache, D-cache) → arbiter → address decoder →
 // 2 slave ports (main memory, peripheral bridge).
-// D-cache has priority over I-cache. Round-robin would be better for
-// real designs, but priority is simpler and D-cache misses are rarer.
+// D-cache has priority over I-cache.
+// Write channel properly holds signals until slave handshake completes.
+// Provides m1_wr_done pulse to dcache when write completes.
 // ============================================================================
 
 module axi_interconnect (
   input  logic        clk,
   input  logic        rst_n,
 
-  // Master 0: I-Cache
+  // Master 0: I-Cache (read only)
   input  logic [31:0] m0_araddr,
   input  logic        m0_arvalid,
   output logic        m0_arready,
@@ -37,6 +38,9 @@ module axi_interconnect (
   output logic        m1_wready,
   output logic        m1_bvalid,
   input  logic        m1_bready,
+
+  // Write completion signal to dcache
+  output logic        m1_wr_done,
 
   // Slave 0: Main Memory (0x0000_0000 – 0x1FFF_FFFF)
   output logic [31:0] s0_araddr,
@@ -77,26 +81,40 @@ module axi_interconnect (
   typedef enum logic [2:0] {ARB_IDLE, ARB_M0_RD, ARB_M1_RD, ARB_M1_WR} arb_state_e;
   arb_state_e arb_state;
 
-  logic sel_slave; // 0 = memory, 1 = peripheral
-
   // Address decode
   function automatic logic addr_is_periph(input logic [31:0] a);
     return (a[31:28] == 4'h2);
   endfunction
 
+  // ── Registered write request ─────────────────────────────────────────
+  // Capture write request on entry to ARB_M1_WR so we can hold signals
+  // stable even if the master deasserts them.
+  logic [31:0] wr_addr_reg, wr_data_reg;
+  logic [3:0]  wr_strb_reg;
+  logic        wr_target_periph;
+
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-      arb_state <= ARB_IDLE;
+      arb_state        <= ARB_IDLE;
+      wr_addr_reg      <= 32'b0;
+      wr_data_reg      <= 32'b0;
+      wr_strb_reg      <= 4'b0;
+      wr_target_periph <= 1'b0;
     end else begin
       case (arb_state)
         ARB_IDLE: begin
           // D-cache write has highest priority
-          if (m1_awvalid && m1_wvalid)
-            arb_state <= ARB_M1_WR;
-          else if (m1_arvalid)
+          if (m1_awvalid && m1_wvalid) begin
+            arb_state        <= ARB_M1_WR;
+            wr_addr_reg      <= m1_awaddr;
+            wr_data_reg      <= m1_wdata;
+            wr_strb_reg      <= m1_wstrb;
+            wr_target_periph <= addr_is_periph(m1_awaddr);
+          end else if (m1_arvalid) begin
             arb_state <= ARB_M1_RD;
-          else if (m0_arvalid)
+          end else if (m0_arvalid) begin
             arb_state <= ARB_M0_RD;
+          end
         end
 
         ARB_M0_RD: begin
@@ -114,9 +132,8 @@ module axi_interconnect (
         end
 
         ARB_M1_WR: begin
-          logic target;
-          target = addr_is_periph(m1_awaddr);
-          if (target ? (s1_bvalid && m1_bready) : (s0_bvalid && m1_bready))
+          // Wait for write response from the target slave
+          if (wr_target_periph ? (s1_bvalid) : (s0_bvalid))
             arb_state <= ARB_IDLE;
         end
 
@@ -124,6 +141,10 @@ module axi_interconnect (
       endcase
     end
   end
+
+  // ── Write completion pulse ───────────────────────────────────────────
+  assign m1_wr_done = (arb_state == ARB_M1_WR) &&
+                      (wr_target_periph ? s1_bvalid : s0_bvalid);
 
   // ── Routing ──────────────────────────────────────────────────────────
   always_comb begin
@@ -166,18 +187,19 @@ module axi_interconnect (
       end
 
       ARB_M1_WR: begin
-        if (addr_is_periph(m1_awaddr)) begin
-          s1_awaddr  = m1_awaddr;  s1_awvalid = m1_awvalid;
-          m1_awready = s1_awready; s1_wdata   = m1_wdata;
-          s1_wstrb   = m1_wstrb;   s1_wvalid  = m1_wvalid;
-          m1_wready  = s1_wready;  m1_bvalid  = s1_bvalid;
-          s1_bready  = m1_bready;
+        // Use REGISTERED write data — held stable for the entire handshake
+        if (wr_target_periph) begin
+          s1_awaddr  = wr_addr_reg;  s1_awvalid = 1'b1;
+          s1_wdata   = wr_data_reg;  s1_wstrb   = wr_strb_reg;
+          s1_wvalid  = 1'b1;
+          m1_awready = s1_awready;   m1_wready  = s1_wready;
+          m1_bvalid  = s1_bvalid;    s1_bready  = m1_bready;
         end else begin
-          s0_awaddr  = m1_awaddr;  s0_awvalid = m1_awvalid;
-          m1_awready = s0_awready; s0_wdata   = m1_wdata;
-          s0_wstrb   = m1_wstrb;   s0_wvalid  = m1_wvalid;
-          m1_wready  = s0_wready;  m1_bvalid  = s0_bvalid;
-          s0_bready  = m1_bready;
+          s0_awaddr  = wr_addr_reg;  s0_awvalid = 1'b1;
+          s0_wdata   = wr_data_reg;  s0_wstrb   = wr_strb_reg;
+          s0_wvalid  = 1'b1;
+          m1_awready = s0_awready;   m1_wready  = s0_wready;
+          m1_bvalid  = s0_bvalid;    s0_bready  = m1_bready;
         end
       end
 
