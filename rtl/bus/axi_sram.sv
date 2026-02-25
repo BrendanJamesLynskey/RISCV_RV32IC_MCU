@@ -70,6 +70,7 @@ module axi_sram #(
           if (rready)
             rd_state <= RD_IDLE;
         end
+        default: rd_state <= RD_IDLE;
       endcase
     end
   end
@@ -99,6 +100,7 @@ module axi_sram #(
           if (bready)
             wr_state <= WR_IDLE;
         end
+        default: wr_state <= WR_IDLE;
       endcase
     end
   end

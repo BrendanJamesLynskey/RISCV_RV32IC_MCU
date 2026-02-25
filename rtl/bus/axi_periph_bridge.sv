@@ -48,12 +48,6 @@ module axi_periph_bridge (
     endcase
   end
 
-  always_comb begin
-    gpio_rd=0; uart_rd=0; timer_rd=0;
-    gpio_addr=rar[7:0]; uart_addr=rar[7:0]; timer_addr=rar[7:0];
-    if (rfsm==RA) case(psel(rar)) 2'd0:gpio_rd=1; 2'd1:uart_rd=1; 2'd2:timer_rd=1; default:; endcase
-  end
-
   // Write FSM
   typedef enum logic [1:0] {WI, WA, WR} wfsm_e;
   wfsm_e wfsm;
@@ -72,9 +66,19 @@ module axi_periph_bridge (
     endcase
   end
 
+  // Unified read/write address and control — single always_comb to avoid MULTIDRIVEN
   always_comb begin
+    gpio_rd=0; uart_rd=0; timer_rd=0;
     gpio_wr=0; uart_wr=0; timer_wr=0;
     gpio_wdata=wdr; uart_wdata=wdr; timer_wdata=wdr;
+
+    // Default: use read address
+    gpio_addr=rar[7:0]; uart_addr=rar[7:0]; timer_addr=rar[7:0];
+
+    // Read strobes
+    if (rfsm==RA) case(psel(rar)) 2'd0:gpio_rd=1; 2'd1:uart_rd=1; 2'd2:timer_rd=1; default:; endcase
+
+    // Write phase: override addresses and assert write strobes
     if (wfsm==WA) begin
       gpio_addr=war[7:0]; uart_addr=war[7:0]; timer_addr=war[7:0];
       case(psel(war)) 2'd0:gpio_wr=1; 2'd1:uart_wr=1; 2'd2:timer_wr=1; default:; endcase
