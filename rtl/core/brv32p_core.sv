@@ -264,7 +264,7 @@ module brv32p_core (
   muldiv u_muldiv (
     .clk    (clk),
     .rst_n  (rst_n),
-    .start  (ctrl_ex.muldiv_en && !stall_ex),
+    .start  (ctrl_ex.muldiv_en),
     .op     (ctrl_ex.muldiv_op),
     .a      (rs1_fwd),
     .b      (rs2_fwd),
