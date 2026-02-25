@@ -89,6 +89,9 @@ module icache #(
         ready = 1'b1;
         rdata = data_mem[set][fill_way][word_sel];
       end
+      default: begin
+        ready = 1'b0;
+      end
     endcase
   end
 
@@ -123,7 +126,7 @@ module icache #(
         S_FILL: begin
           if (mem_valid) begin
             data_mem[set][fill_way][fill_word_cnt] <= mem_rdata;
-            if (fill_word_cnt == WORDS - 1) begin
+            if (fill_word_cnt == 2'(WORDS - 1)) begin
               tag_mem[set][fill_way]   <= tag;
               valid_mem[set][fill_way] <= 1'b1;
               lru[set]                 <= fill_way ? 1'b0 : 1'b1;
@@ -137,6 +140,8 @@ module icache #(
         S_DONE: begin
           state <= S_IDLE;
         end
+
+        default: state <= S_IDLE;
       endcase
     end
   end

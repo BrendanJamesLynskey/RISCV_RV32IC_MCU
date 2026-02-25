@@ -207,7 +207,7 @@ module dcache #(
         S_FILL: begin
           if (mem_valid) begin
             data_mem[set_idx][fill_way][fill_cnt] <= mem_rdata;
-            if (fill_cnt == WORDS - 1) begin
+            if (fill_cnt == 2'(WORDS - 1)) begin
               tag_mem[set_idx][fill_way]   <= tag;
               valid_mem[set_idx][fill_way] <= 1'b1;
               lru[set_idx]                 <= fill_way ? 1'b0 : 1'b1;
