@@ -67,7 +67,8 @@ module compressed_decoder (
             end
             3'b001: begin // C.JAL → jal x1, offset (RV32 only)
               logic [20:0] jimm;
-              jimm = {ci[12], ci[8], ci[10:9], ci[6], ci[7], ci[2], ci[11], ci[5:3], 1'b0};
+              // Sign-extend ci[12] through bits [20:12], then the offset fields
+              jimm = {{10{ci[12]}}, ci[8], ci[10:9], ci[6], ci[7], ci[2], ci[11], ci[5:3], 1'b0};
               instr_out = {jimm[20], jimm[10:1], jimm[11], jimm[19:12], 5'd1, 7'b1101111};
             end
             3'b010: begin // C.LI → addi rd, x0, imm
@@ -112,18 +113,23 @@ module compressed_decoder (
             end
             3'b101: begin // C.J → jal x0, offset
               logic [20:0] jimm;
-              jimm = {ci[12], ci[8], ci[10:9], ci[6], ci[7], ci[2], ci[11], ci[5:3], 1'b0};
+              // Sign-extend ci[12] through bits [20:12], then the offset fields
+              jimm = {{10{ci[12]}}, ci[8], ci[10:9], ci[6], ci[7], ci[2], ci[11], ci[5:3], 1'b0};
               instr_out = {jimm[20], jimm[10:1], jimm[11], jimm[19:12], 5'd0, 7'b1101111};
             end
             3'b110: begin // C.BEQZ → beq rs1', x0, offset
               logic [8:0] boff;
               boff = {ci[12], ci[6:5], ci[2], ci[11:10], ci[4:3], 1'b0};
-              instr_out = {boff[8], boff[7:2], 5'd0, cr(ci[9:7]), 3'b000, boff[1:0], boff[8], 7'b1100011};
+              // B-type: {imm[12], imm[10:5], rs2, rs1, funct3, imm[4:1], imm[11], opcode}
+              // Sign-extend boff[8] into imm[12:9]
+              instr_out = {boff[8], {3{boff[8]}}, boff[7:5], 5'd0, cr(ci[9:7]), 3'b000, boff[4:1], boff[8], 7'b1100011};
             end
             3'b111: begin // C.BNEZ → bne rs1', x0, offset
               logic [8:0] boff;
               boff = {ci[12], ci[6:5], ci[2], ci[11:10], ci[4:3], 1'b0};
-              instr_out = {boff[8], boff[7:2], 5'd0, cr(ci[9:7]), 3'b001, boff[1:0], boff[8], 7'b1100011};
+              // B-type: {imm[12], imm[10:5], rs2, rs1, funct3, imm[4:1], imm[11], opcode}
+              // Sign-extend boff[8] into imm[12:9]
+              instr_out = {boff[8], {3{boff[8]}}, boff[7:5], 5'd0, cr(ci[9:7]), 3'b001, boff[4:1], boff[8], 7'b1100011};
             end
             default: illegal_c = 1'b1;
           endcase
