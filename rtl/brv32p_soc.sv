@@ -39,6 +39,7 @@ module brv32p_soc #(
   logic [31:0] dc_mem_addr, dc_mem_rdata, dc_mem_wdata;
   logic        dc_mem_rd, dc_mem_wr, dc_mem_valid;
   logic [3:0]  dc_mem_wstrb;
+  logic        dc_mem_wr_done;  // AXI write completion acknowledgement
 
   // ── Interconnect ↔ Slave signals ─────────────────────────────────────
   // Slave 0: SRAM
@@ -121,7 +122,8 @@ module brv32p_soc #(
     .mem_wdata (dc_mem_wdata),
     .mem_wstrb (dc_mem_wstrb),
     .mem_rdata (dc_mem_rdata),
-    .mem_valid (dc_mem_valid)
+    .mem_valid (dc_mem_valid),
+    .mem_wr_done(dc_mem_wr_done)
   );
 
   // ══════════════════════════════════════════════════════════════════════
@@ -161,6 +163,8 @@ module brv32p_soc #(
     .m1_wready (),
     .m1_bvalid (),
     .m1_bready (1'b1),
+    // Write completion
+    .m1_wr_done(dc_mem_wr_done),
     // S0: SRAM
     .s0_araddr (s0_araddr), .s0_arvalid(s0_arvalid), .s0_arready(s0_arready),
     .s0_rdata  (s0_rdata),  .s0_rvalid (s0_rvalid),  .s0_rready (s0_rready),
